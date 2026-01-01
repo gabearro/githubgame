@@ -1,53 +1,8 @@
 # Git Tic-Tac-Toe
 
-A turn-based game where moves are git commits and rules are enforced by GitHub Actions.
+This is a game that doesn't have any code. It is just cosists of a text file. You play the game by editing the text file and committing it.
 
-## How It Works
-
-The game state lives in `game.json`. Players take turns by opening Pull Requests that modify this file. A GitHub Action validates each move before it can be merged.
-
-**The key insight:** GitHub branch protection can require status checks to pass before merging. By making the status check a game rule validator, we turn GitHub into a game server that enforces turn order and move legality.
-
-### Architecture
-
-```
-main                         <- Template + workflow (protected)
- └── game/alice-vs-bob       <- Game instance (protected, requires PR + CI)
-      ├── move/alice-1       <- Alice's PR branch
-      ├── move/bob-1         <- Bob's PR branch
-      └── ...
-```
-
-- **`main`**: Contains the game template and validation workflow. Protected to prevent tampering.
-- **`game/*`**: Each branch is an independent game. Protected by rulesets requiring validated PRs.
-- **`move/*`**: Temporary branches for submitting moves via PR.
-
-### GitHub Branch Protection Setup
-
-Two rulesets enforce the game:
-
-**1. `protect-main`** (targets: default branch)
-- Require pull request before merging
-- Block force pushes
-- *Purpose: Prevent players from modifying the validation rules*
-
-**2. `game-branches`** (targets: `game/**`)
-- Require pull request before merging
-- Require status checks to pass: `validate`
-- Block force pushes
-- Bypass: repo owner (to create new games)
-- *Purpose: Force all moves through CI validation*
-
-### Validation Workflow
-
-The GitHub Action (`.github/workflows/validate-move.yml`) runs on every PR to a `game/*` branch and checks:
-
-1. **Turn order**: PR author must match the player whose turn it is
-2. **Single move**: Exactly one board cell changed
-3. **Valid placement**: Cell was empty, correct symbol used
-4. **State consistency**: Turn advanced correctly, winner detected if applicable
-
-If any check fails, the PR cannot be merged.
+Technically the game rules are enforced by GitHub Actions and branch protection rules. Basically the rules of the game are enforced by validation rules.
 
 ## Playing the Game
 
@@ -102,3 +57,50 @@ gh pr create --base game/alice-vs-bob --title "X takes center"
 - `players`: Maps symbols to GitHub usernames
 - `turn`: Which symbol plays next
 - `winner`: null, "X", "O", or "draw" when game ends
+
+## How It Works
+
+The game state lives in `game.json`. Players take turns by opening Pull Requests that modify this file. A GitHub Action validates each move before it can be merged.
+
+**The key insight:** GitHub branch protection can require status checks to pass before merging. By making the status check a game rule validator, we turn GitHub into a game server that enforces turn order and move legality.
+
+### Architecture
+
+```
+main                         <- Template + workflow (protected)
+ └── game/alice-vs-bob       <- Game instance (protected, requires PR + CI)
+      ├── move/alice-1       <- Alice's PR branch
+      ├── move/bob-1         <- Bob's PR branch
+      └── ...
+```
+
+- **`main`**: Contains the game template and validation workflow. Protected to prevent tampering.
+- **`game/*`**: Each branch is an independent game. Protected by rulesets requiring validated PRs.
+- **`move/*`**: Temporary branches for submitting moves via PR.
+
+### GitHub Branch Protection Setup
+
+Two rulesets enforce the game:
+
+**1. `protect-main`** (targets: default branch)
+- Require pull request before merging
+- Block force pushes
+- *Purpose: Prevent players from modifying the validation rules*
+
+**2. `game-branches`** (targets: `game/**`)
+- Require pull request before merging
+- Require status checks to pass: `validate`
+- Block force pushes
+- Bypass: repo owner (to create new games)
+- *Purpose: Force all moves through CI validation*
+
+### Validation Workflow
+
+The GitHub Action (`.github/workflows/validate-move.yml`) runs on every PR to a `game/*` branch and checks:
+
+1. **Turn order**: PR author must match the player whose turn it is
+2. **Single move**: Exactly one board cell changed
+3. **Valid placement**: Cell was empty, correct symbol used
+4. **State consistency**: Turn advanced correctly, winner detected if applicable
+
+If any check fails, the PR cannot be merged.
