@@ -2,7 +2,7 @@ name: Validate Move
 
 on:
   pull_request:
-    branches: [main]
+    branches: ['game/**']
 
 jobs:
   validate:

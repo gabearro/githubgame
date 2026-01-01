@@ -2,20 +2,34 @@
 
 Turn-based tic-tac-toe played via GitHub PRs.
 
-## Players
-- **X**: amiller
-- **O**: xiaziyna
+## Starting a Game
 
-## How to Play
+1. Create a game branch from main:
+   ```bash
+   git checkout main
+   git checkout -b game/alice-vs-bob
+   ```
+2. Edit `game.json` with the two players:
+   ```json
+   {
+     "board": [null, null, null, null, null, null, null, null, null],
+     "players": { "X": "alice", "O": "bob" },
+     "turn": "X",
+     "winner": null
+   }
+   ```
+3. Push the branch: `git push -u origin game/alice-vs-bob`
 
-1. Check `game.json` to see if it's your turn
-2. Create a branch: `git checkout -b my-move`
+## Making a Move
+
+1. Pull latest: `git pull origin game/alice-vs-bob`
+2. Create move branch: `git checkout -b move/alice-1`
 3. Edit `game.json`:
    - Place your symbol (X or O) in an empty cell
    - Update `turn` to the other player's symbol
    - If you won, set `winner` to your symbol
-4. Push and open a PR to `main`
-5. If the move is valid, CI passes and you can merge
+4. Push and open a PR **targeting the game branch**
+5. CI validates, then merge
 
 ## Board Layout
 ```
