@@ -1,0 +1,105 @@
+name: Validate Move
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Move
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+
+            const prAuthor = context.payload.pull_request.user.login;
+
+            // Get old game state from base branch
+            const oldState = JSON.parse(
+              execSync(`git show origin/${context.payload.pull_request.base.ref}:game.json`).toString()
+            );
+
+            // Get new game state from PR
+            const newState = JSON.parse(fs.readFileSync('game.json', 'utf8'));
+
+            // Check game isn't already over
+            if (oldState.winner) {
+              core.setFailed(`Game already over. Winner: ${oldState.winner}`);
+              return;
+            }
+
+            // Check it's this player's turn
+            const expectedPlayer = oldState.players[oldState.turn];
+            if (prAuthor !== expectedPlayer) {
+              core.setFailed(`Not your turn! Waiting for ${expectedPlayer}, got ${prAuthor}`);
+              return;
+            }
+
+            // Find what changed
+            const changes = [];
+            for (let i = 0; i < 9; i++) {
+              if (oldState.board[i] !== newState.board[i]) {
+                changes.push({ index: i, from: oldState.board[i], to: newState.board[i] });
+              }
+            }
+
+            // Validate exactly one cell changed
+            if (changes.length !== 1) {
+              core.setFailed(`Must change exactly one cell. Found ${changes.length} changes.`);
+              return;
+            }
+
+            const move = changes[0];
+
+            // Validate cell was empty
+            if (move.from !== null) {
+              core.setFailed(`Cell ${move.index} already occupied by ${move.from}`);
+              return;
+            }
+
+            // Validate correct symbol placed
+            if (move.to !== oldState.turn) {
+              core.setFailed(`Wrong symbol. Expected ${oldState.turn}, got ${move.to}`);
+              return;
+            }
+
+            // Validate turn advanced correctly
+            const nextTurn = oldState.turn === 'X' ? 'O' : 'X';
+            if (newState.turn !== nextTurn && !newState.winner) {
+              core.setFailed(`Turn should advance to ${nextTurn}`);
+              return;
+            }
+
+            // Check winner calculation
+            const lines = [
+              [0,1,2], [3,4,5], [6,7,8],
+              [0,3,6], [1,4,7], [2,5,8],
+              [0,4,8], [2,4,6]
+            ];
+            let actualWinner = null;
+            for (const [a,b,c] of lines) {
+              if (newState.board[a] && newState.board[a] === newState.board[b] && newState.board[b] === newState.board[c]) {
+                actualWinner = newState.board[a];
+                break;
+              }
+            }
+            if (newState.board.every(c => c !== null) && !actualWinner) {
+              actualWinner = 'draw';
+            }
+
+            if (newState.winner !== actualWinner) {
+              core.setFailed(`Winner should be ${actualWinner}, got ${newState.winner}`);
+              return;
+            }
+
+            console.log(`Valid move by ${prAuthor}: ${oldState.turn} -> cell ${move.index}`);
+            if (actualWinner) {
+              console.log(`Game over! Winner: ${actualWinner}`);
+            }
