@@ -147,8 +147,7 @@ jobs:
             const gameOver = winner !== '';
 
             // Fetch current leaderboard from main
-            let leaderboard;
-            let fileSha;
+            let leaderboard, leaderboardSha;
             try {
               const { data: file } = await github.rest.repos.getContent({
                 owner: context.repo.owner,
@@ -157,22 +156,19 @@ jobs:
                 ref: 'main'
               });
               leaderboard = JSON.parse(Buffer.from(file.content, 'base64').toString());
-              fileSha = file.sha;
+              leaderboardSha = file.sha;
             } catch (e) {
               leaderboard = { players: {}, recentGames: [], activeGames: [] };
             }
             if (!leaderboard.activeGames) leaderboard.activeGames = [];
 
             if (gameOver) {
-              // Initialize players if needed
               if (!leaderboard.players[playerX]) {
                 leaderboard.players[playerX] = { wins: 0, losses: 0, draws: 0 };
               }
               if (!leaderboard.players[playerO]) {
                 leaderboard.players[playerO] = { wins: 0, losses: 0, draws: 0 };
               }
-
-              // Update stats
               if (winner === 'draw') {
                 leaderboard.players[playerX].draws++;
                 leaderboard.players[playerO].draws++;
@@ -183,8 +179,6 @@ jobs:
                 leaderboard.players[playerO].wins++;
                 leaderboard.players[playerX].losses++;
               }
-
-              // Add to recent games (keep last 20)
               leaderboard.recentGames.unshift({
                 players: [playerX, playerO],
                 winner: winner,
@@ -193,11 +187,8 @@ jobs:
                 timestamp: lastMove
               });
               leaderboard.recentGames = leaderboard.recentGames.slice(0, 20);
-
-              // Remove from active games
               leaderboard.activeGames = leaderboard.activeGames.filter(g => g.branch !== branch);
             } else {
-              // Update or add to active games
               const existing = leaderboard.activeGames.find(g => g.branch === branch);
               if (existing) {
                 existing.lastMove = lastMove;
@@ -211,22 +202,87 @@ jobs:
               }
             }
 
-            // Update file on main
-            const content = Buffer.from(JSON.stringify(leaderboard, null, 2) + '\n').toString('base64');
+            // Update leaderboard.json
+            const leaderboardContent = Buffer.from(JSON.stringify(leaderboard, null, 2) + '\n').toString('base64');
             const msg = gameOver
               ? `Leaderboard: ${playerX} vs ${playerO} → ${winner}`
               : `Leaderboard: ${playerX} vs ${playerO} move`;
-            await github.rest.repos.createOrUpdateFileContents({
+            const { data: updatedFile } = await github.rest.repos.createOrUpdateFileContents({
               owner: context.repo.owner,
               repo: context.repo.repo,
               path: 'leaderboard.json',
               message: msg,
-              content: content,
-              sha: fileSha,
+              content: leaderboardContent,
+              sha: leaderboardSha,
               branch: 'main'
             });
+            console.log(`✓ Leaderboard JSON updated`);
 
-            console.log(`✓ Leaderboard updated`);
+            // Render leaderboard markdown
+            const formatDate = (ts) => {
+              const d = new Date(ts);
+              return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            };
+            const formatResult = (g) => {
+              if (g.winner === 'draw') return '🤝';
+              const winnerName = g.winner === 'X' ? g.players[0] : g.players[1];
+              return `🏆 ${winnerName}`;
+            };
+
+            let md = '';
+            if (leaderboard.activeGames.length > 0) {
+              md += `### 🎮 Active Games\n\n`;
+              md += `| Players | Last Move |\n|---------|----------|\n`;
+              for (const g of leaderboard.activeGames.slice(0, 5)) {
+                const issueLink = g.issue ? `[#${g.issue}](../../issues/${g.issue})` : '';
+                md += `| ${g.players[0]} vs ${g.players[1]} ${issueLink} | ${formatDate(g.lastMove)} |\n`;
+              }
+              md += '\n';
+            }
+            if (leaderboard.recentGames.length > 0) {
+              md += `### 🏁 Recent Games\n\n`;
+              md += `| Players | Result | Date |\n|---------|--------|------|\n`;
+              for (const g of leaderboard.recentGames.slice(0, 10)) {
+                const issueLink = g.issue ? `[#${g.issue}](../../issues/${g.issue})` : '';
+                md += `| ${g.players[0]} vs ${g.players[1]} ${issueLink} | ${formatResult(g)} | ${formatDate(g.timestamp)} |\n`;
+              }
+              md += '\n';
+            }
+            const playerList = Object.entries(leaderboard.players)
+              .map(([name, stats]) => ({ name, ...stats, score: stats.wins * 3 + stats.draws }))
+              .sort((a, b) => b.score - a.score);
+            if (playerList.length > 0) {
+              md += `### 👑 Top Players\n\n`;
+              md += `| Player | W | L | D |\n|--------|---|---|---|\n`;
+              for (const p of playerList.slice(0, 10)) {
+                md += `| ${p.name} | ${p.wins} | ${p.losses} | ${p.draws} |\n`;
+              }
+            }
+
+            // Update README
+            const { data: readmeFile } = await github.rest.repos.getContent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: 'README.md',
+              ref: 'main'
+            });
+            const readme = Buffer.from(readmeFile.content, 'base64').toString();
+            const newReadme = readme.replace(
+              /<!-- LEADERBOARD:START -->[\s\S]*?<!-- LEADERBOARD:END -->/,
+              `<!-- LEADERBOARD:START -->\n${md}<!-- LEADERBOARD:END -->`
+            );
+            if (newReadme !== readme) {
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: 'README.md',
+                message: `Update README leaderboard`,
+                content: Buffer.from(newReadme).toString('base64'),
+                sha: readmeFile.sha,
+                branch: 'main'
+              });
+              console.log(`✓ README updated`);
+            }
 
       - name: Auto-merge (production games only)
         if: success() && startsWith(github.event.pull_request.base.ref, 'game/')

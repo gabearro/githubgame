@@ -8,6 +8,9 @@ Play tic-tac-toe by editing a JSON file. No servers, no frontend—just git.
 
 A bot creates the game branch. You'll get notified on every move.
 
+<!-- LEADERBOARD:START -->
+<!-- LEADERBOARD:END -->
+
 ## Make a Move
 
 ```bash
