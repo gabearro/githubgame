@@ -16,10 +16,8 @@ jobs:
         with:
           script: |
             const title = context.payload.issue.title;
-            const issueAuthor = context.payload.issue.user.login;
             const issueNumber = context.payload.issue.number;
 
-            // Parse "new game: player1 vs player2"
             const match = title.match(/^new game:\s*(\S+)\s+vs\s+(\S+)$/i);
             if (!match) {
               await github.rest.issues.createComment({
@@ -38,40 +36,17 @@ jobs:
             }
 
             const [, playerX, playerO] = match;
-            const branchName = `game/${playerX}-vs-${playerO}`;
 
-            // Check if branch already exists
-            try {
-              await github.rest.repos.getBranch({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                branch: branchName
-              });
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                body: `❌ Game \`${branchName}\` already exists!`
-              });
-              await github.rest.issues.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                state: 'closed'
-              });
-              return;
-            } catch (e) {
-              if (e.status !== 404) throw e;
-            }
+            // Generate unique branch name with issue number + random suffix
+            const randomSuffix = Math.random().toString(36).substring(2, 8);
+            const branchName = `game/${playerX}-vs-${playerO}-${issueNumber}-${randomSuffix}`;
 
-            // Get main branch SHA
             const { data: mainRef } = await github.rest.git.getRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: 'heads/main'
             });
 
-            // Create game branch
             await github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -79,15 +54,15 @@ jobs:
               sha: mainRef.object.sha
             });
 
-            // Create game.json content
+            // Store issue number in game state for notifications
             const gameState = {
               board: [null, null, null, null, null, null, null, null, null],
               players: { X: playerX, O: playerO },
               turn: 'X',
-              winner: null
+              winner: null,
+              issue: issueNumber
             };
 
-            // Get current game.json to get its SHA
             const { data: currentFile } = await github.rest.repos.getContent({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -95,22 +70,37 @@ jobs:
               ref: branchName
             });
 
-            // Update game.json on the new branch
+            // Reference issue in commit message for notifications
             await github.rest.repos.createOrUpdateFileContents({
               owner: context.repo.owner,
               repo: context.repo.repo,
               path: 'game.json',
-              message: `New game: ${playerX} (X) vs ${playerO} (O)`,
+              message: `New game: ${playerX} (X) vs ${playerO} (O)\n\nCreated from #${issueNumber}`,
               content: Buffer.from(JSON.stringify(gameState, null, 2) + '\n').toString('base64'),
               sha: currentFile.sha,
               branch: branchName
             });
 
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const branchUrl = `${repoUrl}/tree/${branchName}`;
+            const gameJsonUrl = `${repoUrl}/blob/${branchName}/game.json`;
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `✓ Game created!\n\n**${playerX}** (X) vs **${playerO}** (O)\n\nBranch: \`${branchName}\`\n\n${playerX} goes first. Fork the repo and open a PR to make your move!`
+              body: [
+                `✓ Game created!`,
+                ``,
+                `**${playerX}** (X) vs **${playerO}** (O)`,
+                ``,
+                `📁 Branch: [\`${branchName}\`](${branchUrl})`,
+                `📄 Game state: [game.json](${gameJsonUrl})`,
+                ``,
+                `${playerX} goes first. Fork the repo, edit \`game.json\`, and open a PR to make your move!`,
+                ``,
+                `_Subscribe to this issue to get notified of game updates._`
+              ].join('\n')
             });
 
             await github.rest.issues.update({

@@ -102,6 +102,32 @@ jobs:
               console.log(`Game over! Winner: ${actualWinner}`);
             }
 
+            // Notify the game's issue if it exists
+            if (oldState.issue) {
+              const board = newState.board;
+              const boardStr = [
+                `\`${board[0]||'·'}\` \`${board[1]||'·'}\` \`${board[2]||'·'}\``,
+                `\`${board[3]||'·'}\` \`${board[4]||'·'}\` \`${board[5]||'·'}\``,
+                `\`${board[6]||'·'}\` \`${board[7]||'·'}\` \`${board[8]||'·'}\``
+              ].join('\n');
+
+              let msg = `**${prAuthor}** played ${oldState.turn} at cell ${move.index}\n\n${boardStr}`;
+              if (actualWinner === 'draw') {
+                msg += `\n\n🤝 **Game Over - Draw!**`;
+              } else if (actualWinner) {
+                msg += `\n\n🏆 **Game Over - ${actualWinner} wins!**`;
+              } else {
+                msg += `\n\n⏳ ${newState.players[newState.turn]}'s turn (${newState.turn})`;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: oldState.issue,
+                body: msg
+              });
+            }
+
       - name: Auto-merge (production games only)
         if: success() && startsWith(github.event.pull_request.base.ref, 'game/')
         uses: actions/github-script@v7
