@@ -3,21 +3,21 @@
     "amiller": {
       "wins": 0,
       "losses": 0,
-      "draws": 2
+      "draws": 4
     }
   },
-  "activeGames": [
+  "activeGames": [],
+  "recentGames": [
     {
       "players": [
         "amiller",
         "amiller"
       ],
+      "winner": "draw",
       "branch": "game/amiller-vs-amiller-42-3qxs9d",
       "issue": 42,
-      "lastMove": "2026-01-02T03:01:00.444Z"
-    }
-  ],
-  "recentGames": [
+      "timestamp": "2026-01-02T03:10:48.132Z"
+    },
     {
       "players": [
         "amiller",
