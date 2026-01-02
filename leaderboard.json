@@ -6,7 +6,17 @@
       "draws": 4
     }
   },
-  "activeGames": [],
+  "activeGames": [
+    {
+      "players": [
+        "amiller",
+        "gabearro"
+      ],
+      "branch": "game/amiller-vs-gabearro-54-8gqsef",
+      "issue": 54,
+      "lastMove": "2026-01-02T23:49:44.656Z"
+    }
+  ],
   "recentGames": [
     {
       "players": [
