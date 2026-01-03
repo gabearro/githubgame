@@ -2,7 +2,7 @@
   "board": [
     "X",
     "X",
-    null,
+    "O",
     null,
     "O",
     null,
@@ -14,7 +14,7 @@
     "X": "amiller",
     "O": "gabearro"
   },
-  "turn": "O",
+  "turn": "X",
   "winner": null,
   "issue": 54
 }
